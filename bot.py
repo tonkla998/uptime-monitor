@@ -17,7 +17,7 @@ db_path = os.path.join(base_dir, "data", "monitor.db")
 
 icons = {"UP": "✅", "SLOW": "🐢", "DOWN": "❌"}
 slow_ms = 2000      # ให้ตรงกับใน monitor.py
-stale_minutes = 5   # monitor เงียบเกินกี่นาที ถือว่าหยุดทำงาน
+stale_minutes = 2   # monitor เงียบเกินกี่นาที ถือว่าหยุดทำงาน
 
 
 def get_latest():
