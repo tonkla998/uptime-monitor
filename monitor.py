@@ -7,9 +7,12 @@ from datetime import datetime
 from config import WEBHOOK_URL
 
 # ---------- ตั้งค่า ----------
-check_type = "http"                 # "http" สำหรับเว็บ, "ping" สำหรับเซิร์ฟเวอร์
-target = "https://oreg3.rmutt.ac.th/"   # ถ้าเป็น ping ใส่แค่ชื่อเครื่อง/IP เช่น "8.8.8.8"
-interval = 60                      # เช็กทุกกี่วินาที
+targets = [
+    {"type": "http", "target": "https://www.google.com"},
+    {"type": "http", "target": "https://www.rmutt.ac.th"},
+    {"type": "http", "target": "https://abc.invalid"},
+]
+interval = 60
 
 # ---------- ฐานข้อมูล ----------
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -47,10 +50,10 @@ def check_ping(host):
     return "TTL=" in result.stdout
 
 
-def check(target):
-    if check_type == "ping":
-        return check_ping(target)
-    return check_http(target)
+def check(item):
+    if item["type"] == "ping":
+        return check_ping(item["target"])
+    return check_http(item["target"])
 
 
 # ---------- แจ้งเตือน + บันทึก ----------
@@ -72,23 +75,30 @@ def save_result(target, is_up):
 
 
 # ---------- เริ่มทำงาน ----------
-last_status = True
-send_discord(f"▶️ เริ่มเฝ้าดู {target} ({check_type})")
+last_status = {}
+for item in targets:
+    last_status[item["target"]] = True
+
+send_discord(f"▶️ เริ่มเฝ้าดู {len(targets)} เป้าหมาย")
 
 while True:
-    is_up = check(target)
-    save_result(target, is_up)
+    for item in targets:
+        name = item["target"]
+        is_up = check(item)
+        save_result(name, is_up)
 
-    if is_up:
-        print("UP ✅", target)
-    else:
-        print("DOWN ❌", target)
-
-    if is_up != last_status:
         if is_up:
-            send_discord(f"✅ {target} กลับมาใช้งานได้แล้ว")
+            print("UP ✅", name)
         else:
-            send_discord(f"🚨 {target} ล่ม!")
+            print("DOWN ❌", name)
 
-    last_status = is_up
+        if is_up != last_status[name]:
+            if is_up:
+                send_discord(f"✅ {name} กลับมาใช้งานได้แล้ว")
+            else:
+                send_discord(f"🚨 {name} ล่ม!")
+
+        last_status[name] = is_up
+
+    print("---")
     time.sleep(interval)
