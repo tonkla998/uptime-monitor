@@ -5,17 +5,19 @@ import os
 import subprocess
 from datetime import datetime
 from config import WEBHOOK_URL
+from report import send_report
 
 # ---------- ตั้งค่า ----------
 targets = [
     {"type": "http", "target": "https://www.google.com"},
     {"type": "http", "target": "https://www.rmutt.ac.th"},
-    {"type": "http", "target": "https://abc.invalid"},
+    {"type": "ping", "target": "https://oreg3.rmutt.ac.th/"},
 ]
-interval = 60
-slow_ms = 2000      # ถ้าช้ากว่านี้ (มิลลิวินาที) ถือว่า SLOW
-retries = 3         # ลองกี่ครั้งก่อนตัดสินว่า DOWN
-retry_delay = 3     # รอกี่วินาทีระหว่างลองแต่ละครั้ง
+interval = 60         # เช็กทุกกี่วินาที
+slow_ms = 2000        # ช้ากว่านี้ (ms) ถือว่า SLOW
+retries = 3           # ลองกี่ครั้งก่อนตัดสินว่า DOWN
+retry_delay = 3       # รอกี่วินาทีระหว่างลองใหม่
+report_every = 3600   # ส่งรายงานทุกกี่วินาที (3600 = 1 ชั่วโมง)
 
 # ---------- ฐานข้อมูล ----------
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -34,7 +36,6 @@ conn.execute("""
     )
 """)
 
-# เพิ่มคอลัมน์ response_ms ให้ตารางเดิม (ถ้ามีแล้วจะข้ามไป)
 try:
     conn.execute("ALTER TABLE checks ADD COLUMN response_ms INTEGER")
 except sqlite3.OperationalError:
@@ -72,7 +73,7 @@ def check(item):
         ms = int((time.perf_counter() - start) * 1000)
 
         if ok:
-            break                     # ผ่านแล้ว ไม่ต้องลองต่อ
+            break
 
         if attempt < retries - 1:
             print(f"   ลองใหม่ ({attempt + 2}/{retries}) {item['target']}")
@@ -110,6 +111,7 @@ for item in targets:
     last_status[item["target"]] = "UP"
 
 send_discord(f"▶️ เริ่มเฝ้าดู {len(targets)} เป้าหมาย")
+last_report = time.time()
 
 while True:
     for item in targets:
@@ -128,6 +130,11 @@ while True:
                 send_discord(f"🚨 {name} ล่ม!")
 
         last_status[name] = status
+
+    # ครบเวลาส่งรายงานหรือยัง
+    if time.time() - last_report >= report_every:
+        send_report(max(1, report_every // 3600))
+        last_report = time.time()
 
     print("---")
     time.sleep(interval)
