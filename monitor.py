@@ -9,15 +9,17 @@ from report import send_report
 
 # ---------- ตั้งค่า ----------
 targets = [
-    {"type": "http", "target": "https://abc.invalid/"},
+    {"type": "http", "target": "https://www.youtube.com/"},
     {"type": "http", "target": "https://www.rmutt.ac.th"},
     {"type": "ping", "target": "8.8.8.8"},
 ]
-interval = 60         # เช็กทุกกี่วินาที
+interval = 60        # เช็กทุกกี่วินาที
 slow_ms = 2000        # ช้ากว่านี้ (ms) ถือว่า SLOW
 retries = 3           # ลองกี่ครั้งก่อนตัดสินว่า DOWN
 retry_delay = 3       # รอกี่วินาทีระหว่างลองใหม่
 report_every = 3600   # ส่งรายงานทุกกี่วินาที (3600 = 1 ชั่วโมง)
+report_hours = 6      # รายงาน+กราฟ ย้อนหลังกี่ชั่วโมง
+
 
 # ---------- ฐานข้อมูล ----------
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -133,7 +135,7 @@ while True:
 
     # ครบเวลาส่งรายงานหรือยัง
     if time.time() - last_report >= report_every:
-                send_report(max(1, report_every // 3600), slow_ms=slow_ms)
+        send_report(report_hours, slow_ms=slow_ms)
         last_report = time.time()
 
     print("---")
