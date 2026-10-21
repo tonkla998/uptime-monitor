@@ -13,7 +13,7 @@ targets = [
     {"type": "http", "target": "https://www.rmutt.ac.th"},
     {"type": "ping", "target": "8.8.8.8"},
 ]
-interval = 10         # เช็กทุกกี่วินาที
+interval = 60         # เช็กทุกกี่วินาที
 slow_ms = 2000        # ช้ากว่านี้ (ms) ถือว่า SLOW
 retries = 3           # ลองกี่ครั้งก่อนตัดสินว่า DOWN
 retry_delay = 3       # รอกี่วินาทีระหว่างลองใหม่
