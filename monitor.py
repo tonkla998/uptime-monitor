@@ -11,7 +11,7 @@ from report import send_report
 targets = [
     {"type": "http", "target": "https://www.google.com"},
     {"type": "http", "target": "https://www.rmutt.ac.th"},
-    {"type": "ping", "target": "https://oreg3.rmutt.ac.th/"},
+    {"type": "ping", "target": "8.8.8.8"},
 ]
 interval = 60         # เช็กทุกกี่วินาที
 slow_ms = 2000        # ช้ากว่านี้ (ms) ถือว่า SLOW
