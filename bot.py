@@ -1,12 +1,14 @@
 import sqlite3
 import os
+import asyncio
+from datetime import datetime
 
 import discord
 from discord import app_commands
+from discord.ext import tasks
 
 from config import BOT_TOKEN, GUILD_ID
-from discord_notify import COLORS
-
+from discord_notify import COLORS, send_embed
 from report import make_chart
 from targets_store import load_targets, save_targets
 
@@ -14,12 +16,14 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 db_path = os.path.join(base_dir, "data", "monitor.db")
 
 icons = {"UP": "✅", "SLOW": "🐢", "DOWN": "❌"}
-
-slow_ms = 2000   # ให้ตรงกับใน monitor.py
+slow_ms = 2000      # ให้ตรงกับใน monitor.py
+stale_minutes = 5   # monitor เงียบเกินกี่นาที ถือว่าหยุดทำงาน
 
 
 def get_latest():
-    """ดึงผลเช็กล่าสุดของแต่ละเป้าหมาย (เฉพาะที่เช็กใน 10 นาทีล่าสุด)"""
+    """ดึงผลเช็กล่าสุดของแต่ละเป้าหมาย (เฉพาะที่อยู่ในรายการตอนนี้)"""
+    current = {t["target"] for t in load_targets()}
+
     conn = sqlite3.connect(db_path)
     rows = conn.execute("""
         SELECT url, status, response_ms, reason, checked_at
@@ -29,7 +33,18 @@ def get_latest():
         ORDER BY url
     """).fetchall()
     conn.close()
-    return rows
+
+    return [r for r in rows if r[0] in current]
+
+
+def last_check_time():
+    """เวลาที่ monitor บันทึกผลล่าสุด (None ถ้ายังไม่มีข้อมูล)"""
+    conn = sqlite3.connect(db_path)
+    row = conn.execute("SELECT MAX(checked_at) FROM checks").fetchone()
+    conn.close()
+    if row[0] is None:
+        return None
+    return datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
 
 
 # ---------- ตั้งค่าบอท ----------
@@ -50,8 +65,41 @@ async def on_ready():
     tree.clear_commands(guild=None)
     await tree.sync()
 
+    if not watchdog.is_running():
+        watchdog.start()
+
     print("บอทออนไลน์แล้ว:", client.user)
     print("คำสั่งที่ลงทะเบียน:", [c.name for c in synced])
+
+
+# ---------- เฝ้าดูตัว monitor (ทุก 1 นาที) ----------
+monitor_alive = True
+
+
+@tasks.loop(minutes=1)
+async def watchdog():
+    global monitor_alive
+
+    last = last_check_time()
+    if last is None:
+        return
+
+    silent = (datetime.now() - last).total_seconds() / 60
+
+    if silent > stale_minutes and monitor_alive:
+        monitor_alive = False
+        print(f"⚠️ monitor เงียบไป {silent:.0f} นาที")
+        await asyncio.to_thread(
+            send_embed, "⚠️ monitor หยุดทำงาน", COLORS["SLOW"], [
+                ("ไม่มีข้อมูลใหม่มา", f"{silent:.0f} นาที", True),
+                ("เช็กล่าสุด", last.strftime("%H:%M น."), True),
+            ], "ตอนนี้ไม่มีใครเช็กเว็บอยู่ ถ้าเว็บล่มจะไม่มีแจ้งเตือน\nลองเปิด `monitor.py` ใหม่",
+        )
+
+    elif silent <= stale_minutes and not monitor_alive:
+        monitor_alive = True
+        print("✅ monitor กลับมาทำงานแล้ว")
+        await asyncio.to_thread(send_embed, "✅ monitor กลับมาทำงานแล้ว", COLORS["UP"])
 
 
 # ---------- คำสั่ง /status ----------
@@ -88,6 +136,7 @@ async def status(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
+
 # ---------- คำสั่ง /chart ----------
 @tree.command(name="chart", description="ขอกราฟความเร็วย้อนหลัง")
 @app_commands.describe(hours="ย้อนหลังกี่ชั่วโมง (1-48)")
@@ -104,8 +153,11 @@ async def chart(interaction: discord.Interaction, hours: app_commands.Range[int,
     embed.set_image(url="attachment://chart.png")
 
     await interaction.followup.send(embed=embed, file=file)
+
+
 # ---------- คำสั่ง /add ----------
 @tree.command(name="add", description="เพิ่มเป้าหมายที่จะเฝ้าดู")
+@app_commands.default_permissions(manage_guild=True)   # เฉพาะแอดมิน
 @app_commands.describe(type="เช็กแบบไหน", target="ลิงก์เว็บ หรือ IP/ชื่อเครื่อง")
 @app_commands.choices(type=[
     app_commands.Choice(name="HTTP (เว็บไซต์)", value="http"),
@@ -152,6 +204,7 @@ async def target_autocomplete(interaction: discord.Interaction, current: str):
 
 
 @tree.command(name="remove", description="ลบเป้าหมายออกจากการเฝ้าดู")
+@app_commands.default_permissions(manage_guild=True)   # เฉพาะแอดมิน
 @app_commands.describe(target="เลือกเป้าหมายที่จะลบ")
 @app_commands.autocomplete(target=target_autocomplete)
 async def remove(interaction: discord.Interaction, target: str):
@@ -182,4 +235,6 @@ async def list_targets(interaction: discord.Interaction):
         color=COLORS["INFO"],
     )
     await interaction.response.send_message(embed=embed)
+
+
 client.run(BOT_TOKEN)
