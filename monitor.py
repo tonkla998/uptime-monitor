@@ -7,14 +7,10 @@ import platform
 from datetime import datetime
 from report import send_report
 from discord_notify import send_embed, COLORS
+from targets_store import load_targets
 
 # ---------- ตั้งค่า ----------
-targets = [
-    {"type": "http", "target": "https://www.google.com"},
-    {"type": "http", "target": "https://www.rmutt.ac.th"},
-    {"type": "http", "target": "https://oreg3.rmutt.ac.th/"},
-    {"type": "ping", "target": "8.8.8.8"},
-]
+
 interval = 60         # เช็กทุกกี่วินาที
 slow_ms = 2000        # ช้ากว่านี้ (ms) ถือว่า SLOW
 retries = 3           # ลองกี่ครั้งก่อนตัดสินว่า DOWN
@@ -161,8 +157,7 @@ icons = {"UP": "✅", "SLOW": "🐢", "DOWN": "❌"}
 
 last_status = {}
 down_since = {}
-for item in targets:
-    last_status[item["target"]] = "UP"
+targets = load_targets()
 
 target_list = "\n".join(f"• `{t['type'].upper()}` {t['target']}" for t in targets)
 send_embed("▶️ เริ่มเฝ้าดูระบบ", COLORS["INFO"], [
@@ -174,8 +169,11 @@ send_embed("▶️ เริ่มเฝ้าดูระบบ", COLORS["INFO"
 last_report = time.time()
 
 while True:
+    targets = load_targets()   # อ่านใหม่ทุกรอบ เผื่อมีคนสั่ง /add หรือ /remove
+
     for item in targets:
         name = item["target"]
+        last_status.setdefault(name, "UP")   # เป้าหมายใหม่ เริ่มที่ UP
         status, ms, reason = check(item)
         save_result(name, status, ms, reason)
 

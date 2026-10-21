@@ -8,6 +8,7 @@ from config import BOT_TOKEN, GUILD_ID
 from discord_notify import COLORS
 
 from report import make_chart
+from targets_store import load_targets, save_targets
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 db_path = os.path.join(base_dir, "data", "monitor.db")
@@ -103,5 +104,82 @@ async def chart(interaction: discord.Interaction, hours: app_commands.Range[int,
     embed.set_image(url="attachment://chart.png")
 
     await interaction.followup.send(embed=embed, file=file)
+# ---------- คำสั่ง /add ----------
+@tree.command(name="add", description="เพิ่มเป้าหมายที่จะเฝ้าดู")
+@app_commands.describe(type="เช็กแบบไหน", target="ลิงก์เว็บ หรือ IP/ชื่อเครื่อง")
+@app_commands.choices(type=[
+    app_commands.Choice(name="HTTP (เว็บไซต์)", value="http"),
+    app_commands.Choice(name="Ping (เซิร์ฟเวอร์)", value="ping"),
+])
+async def add(interaction: discord.Interaction, type: app_commands.Choice[str], target: str):
+    target = target.strip()
 
+    # ตรวจรูปแบบให้ถูกกับประเภท
+    if type.value == "http" and not target.startswith(("http://", "https://")):
+        await interaction.response.send_message(
+            "❌ HTTP ต้องขึ้นต้นด้วย `http://` หรือ `https://`", ephemeral=True)
+        return
+    if type.value == "ping" and "://" in target:
+        await interaction.response.send_message(
+            "❌ Ping ใส่แค่ชื่อเครื่องหรือ IP เช่น `8.8.8.8` (ไม่ต้องมี https://)", ephemeral=True)
+        return
+
+    targets = load_targets()
+    if any(t["target"] == target for t in targets):
+        await interaction.response.send_message(
+            f"⚠️ `{target}` มีอยู่ในรายการแล้ว", ephemeral=True)
+        return
+
+    targets.append({"type": type.value, "target": target})
+    save_targets(targets)
+
+    embed = discord.Embed(title="➕ เพิ่มเป้าหมายแล้ว", color=COLORS["UP"])
+    embed.add_field(name="เป้าหมาย", value=target, inline=False)
+    embed.add_field(name="ประเภท", value=type.value.upper(), inline=True)
+    embed.add_field(name="ทั้งหมด", value=f"{len(targets)} เป้าหมาย", inline=True)
+    embed.set_footer(text="จะเริ่มเช็กในรอบถัดไป (ไม่เกิน 1 นาที)")
+    await interaction.response.send_message(embed=embed)
+
+
+# ---------- คำสั่ง /remove ----------
+async def target_autocomplete(interaction: discord.Interaction, current: str):
+    # เสนอรายการเป้าหมายที่มีอยู่ ตามที่พิมพ์มา
+    return [
+        app_commands.Choice(name=t["target"], value=t["target"])
+        for t in load_targets()
+        if current.lower() in t["target"].lower()
+    ][:25]
+
+
+@tree.command(name="remove", description="ลบเป้าหมายออกจากการเฝ้าดู")
+@app_commands.describe(target="เลือกเป้าหมายที่จะลบ")
+@app_commands.autocomplete(target=target_autocomplete)
+async def remove(interaction: discord.Interaction, target: str):
+    targets = load_targets()
+    new_targets = [t for t in targets if t["target"] != target]
+
+    if len(new_targets) == len(targets):
+        await interaction.response.send_message(
+            f"⚠️ ไม่พบ `{target}` ในรายการ", ephemeral=True)
+        return
+
+    save_targets(new_targets)
+
+    embed = discord.Embed(title="🗑️ ลบเป้าหมายแล้ว", color=COLORS["DOWN"])
+    embed.add_field(name="เป้าหมาย", value=target, inline=False)
+    embed.add_field(name="เหลือ", value=f"{len(new_targets)} เป้าหมาย", inline=True)
+    await interaction.response.send_message(embed=embed)
+
+
+# ---------- คำสั่ง /list ----------
+@tree.command(name="list", description="ดูรายการเป้าหมายทั้งหมด")
+async def list_targets(interaction: discord.Interaction):
+    targets = load_targets()
+    lines = [f"`{t['type'].upper():4}` {t['target']}" for t in targets]
+    embed = discord.Embed(
+        title=f"📋 เป้าหมายทั้งหมด ({len(targets)})",
+        description="\n".join(lines) or "ยังไม่มีเป้าหมาย ใช้ /add เพื่อเพิ่ม",
+        color=COLORS["INFO"],
+    )
+    await interaction.response.send_message(embed=embed)
 client.run(BOT_TOKEN)
