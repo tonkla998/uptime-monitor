@@ -9,7 +9,7 @@ from report import send_report
 
 # ---------- ตั้งค่า ----------
 targets = [
-    {"type": "http", "target": "https://www.google.com"},
+    {"type": "http", "target": "https://abc.invalid/"},
     {"type": "http", "target": "https://www.rmutt.ac.th"},
     {"type": "ping", "target": "8.8.8.8"},
 ]
@@ -133,7 +133,7 @@ while True:
 
     # ครบเวลาส่งรายงานหรือยัง
     if time.time() - last_report >= report_every:
-        send_report(max(1, report_every // 3600))
+                send_report(max(1, report_every // 3600), slow_ms=slow_ms)
         last_report = time.time()
 
     print("---")
