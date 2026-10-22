@@ -18,7 +18,7 @@ def send_embed(title, color, fields=None, description="", image_path=None):
         "color": color,
         "fields": [],
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "footer": {"text": "Uptime Monitor"},
+        "footer": {"text": "Mini Project"},
     }
 
     for name, value, inline in fields or []:
