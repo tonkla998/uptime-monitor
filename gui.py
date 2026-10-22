@@ -136,7 +136,7 @@ class App(ctk.CTk):
         self.type_menu = ctk.CTkOptionMenu(form, values=["HTTP", "Ping"], width=90, font=self.font)
         self.type_menu.pack(side="left", padx=4)
 
-        self.entry = ctk.CTkEntry(form, placeholder_text="https://example.com หรือ 8.8.8.8", font=self.font)
+        self.entry = ctk.CTkEntry(form, placeholder_text="https://www.rmutt.ac.th/ หรือ 8.8.8.8", font=self.font)
         self.entry.pack(side="left", fill="x", expand=True, padx=4)
         self.entry.bind("<Return>", lambda e: self.add_target())
 
