@@ -148,6 +148,17 @@ class App(ctk.CTk):
         proc = self.procs[name]
         return proc is not None and proc.poll() is None
 
+    def other_monitor_running(self):
+        """มี monitor ตัวอื่น (ที่ไม่ได้เปิดจากโปรแกรมนี้) รันอยู่ไหม"""
+        if self.is_running("monitor") or not monitor_is_fresh():
+            return False
+        # ถ้าเพิ่งกดหยุดเอง ข้อมูลล่าสุดก็มาจากตัวที่เราเพิ่งปิด ไม่ใช่ตัวอื่น
+        stopped = self.stopped_at.get("monitor")
+        last = last_check_time()
+        if stopped and last and last <= stopped:
+            return False
+        return True
+
     def toggle(self, name):
         if self.is_running(name):
             self.stop(name)
@@ -156,7 +167,7 @@ class App(ctk.CTk):
         self.refresh(reschedule=False)
 
     def start(self, name):
-        if name == "monitor" and monitor_is_fresh():
+        if name == "monitor" and self.other_monitor_running():
             ok = messagebox.askyesno(
                 "monitor อาจรันอยู่แล้ว",
                 "มีข้อมูลใหม่เข้ามาภายใน 2 นาที แปลว่าอาจมี monitor รันอยู่แล้ว\n"
@@ -252,12 +263,7 @@ class App(ctk.CTk):
             self.after(REFRESH_MS, self.refresh)
 
     def update_controls(self):
-        fresh = monitor_is_fresh()
-
-        # เพิ่งกดหยุดเอง ข้อมูลเก่ายังดูสด ไม่ต้องนับว่ามีตัวอื่นรันอยู่
-        stopped = self.stopped_at.get("monitor")
-        if stopped and (datetime.now() - stopped).total_seconds() < FRESH_MINUTES * 60:
-            fresh = False
+        fresh = self.other_monitor_running()
 
         for name, (dot, text, button, label) in self.controls.items():
             proc = self.procs[name]
